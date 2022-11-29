@@ -11,6 +11,9 @@
   <!-- Main Stylesheet & Scripts -->
   <link rel="stylesheet" href="assets/styles/global.css" />
   <script src="assets/scripts/speechSynth.js" type="module"></script>
+  <!-- Use LaunchDarkly sdk -->
+  <script src="https://unpkg.com/launchdarkly-js-client-sdk@2"></script>
+
 </head>
 
 <body>
@@ -33,5 +36,84 @@
     </section>
   </main>
 </body>
+
+<script>
+  // Set up the user properties. This user should appear on your LaunchDarkly users dashboard
+  // soon after you run the demo.
+  var user = {
+    name: 'Bob Loblaw',
+    key: 'example-user-key',
+  };
+
+  user.key = (Math.random() + 1).toString(36).substring(2);
+
+  // Create a new LDClient instance with your environment-specific SDK key
+  var ldclient = LDClient.initialize('638652cffdf462118c7b4f4a', user);
+
+  function render() {
+    var backFlagValue = ldclient.variation('blue-background', false);
+    console.log("SDK successfully connected! The value of blue-background is " + backFlagValue + " for " + user.key)
+    if (backFlagValue) {
+      document.querySelector("body").classList.add('blue');
+    }
+    var saveFlagValue = ldclient.variation('save-speech', false)
+    console.log("SDK successfully connected! The value of save-speech is " + saveFlagValue + " for " + user.key)
+    if (saveFlagValue) {
+      saveButton = document.createElement("button");
+      saveButton.textContent = "Save Speech";
+
+      document.querySelector("section").appendChild(saveButton);
+      const textarea = document.querySelector('#explore > textarea');
+      
+      saveButton.addEventListener('click', () => {
+        function getOptionIndex() {
+          const voiceSelect = document.querySelector('#voice-select');
+          const option = voiceSelect.options[voiceSelect.selectedIndex];
+          return option.getAttribute('data-index');
+        }
+        const synth = window.speechSynthesis;
+        let voices = synth.getVoices();
+        let textToSpeak = textarea.value;
+        let utterThis = new SpeechSynthesisUtterance(textToSpeak);
+        utterThis.voice = voices[getOptionIndex()];
+        console.log(utterThis);
+
+        let data = JSON.stringify({
+          "text": utterThis.text,
+          "lang": utterThis.lang, 
+          "pitch": utterThis.pitch,
+          "rate": utterThis.rate,
+          "volume": utterThis.volume,
+          "voice": {
+            "default": utterThis.voice.default,
+            "lang": utterThis.voice.lang,
+            "localService": utterThis.voice.localService,
+            "name": utterThis.voice.name,
+            "voiceURI": utterThis.voice.voiceURI
+          }})
+        let type = "application/json", name = "voicefile.json";
+        downloader(data, type, name)
+
+        function downloader(data, type, name) {
+          let blob = new Blob([data], {type});
+          let url = window.URL.createObjectURL(blob);
+          downloadURI(url, name);
+          window.URL.revokeObjectURL(url);
+        }
+
+        function downloadURI(uri, name) {
+            let link = document.createElement("a");
+            link.download = name;
+            link.href = uri;
+            link.click();
+        }
+
+    });
+  }}
+
+  ldclient.on('ready', render);
+  ldclient.on('change', render);
+
+</script>
 
 </html>
